@@ -39,6 +39,17 @@ int searchCache(Cache* cache, char* domain, char* ip) {
     return 0;
 }
 
+void printCache(const Cache* cache) {
+    printf("Cache Contents:\n");
+    printf("---------------\n");
+    for (int i = 0; i < cache->count; i++) {
+        printf("Entry %d:\n", i + 1);
+        printf("Domain: %s\n", cache->entries[i].domain);
+        printf("IP: %s\n", cache->entries[i].ip);
+        printf("---------------\n");
+    }
+}
+
 // Обновление кэша
 void updateCache(Cache* cache, char* domain, char* ip) {
     if (cache->count < CACHE_SIZE) {
@@ -283,33 +294,37 @@ int main() {
     int choise = 0;
     while (true)
     {
-        if (searchCache(&cache, domain, ip)) {
-            printf("IP-address cache: %s\n", ip);
-        }
-        else if (searchIP(domain, "dns_table.txt", &ip)) {
-            printf("IP-address file: %.*s\n", (int)strlen(ip), ip);
-            updateCache(&cache, domain, ip);
-        }
-        else {
-            printf("IP-address din't found.\n");
-            printf("Enter IP-address for add: ");
-            ip = getInputString();
-            if (isValidIP(ip)) {
-                if (isDuplicateRecord(ip, "dns_table.txt")) {
-                    printf("Already exist.\n");
-                }
-                else {
-                    addRecordToFile(domain, ip, "dns_table.txt");
-                    printf("Good.\n");
-                    updateCache(&cache, domain, ip);
-                }
+        if (choise != 2)
+        {
+            if (searchCache(&cache, domain, ip)) {
+                printf("IP-address cache: %s\n", ip);
+            }
+            else if (searchIP(domain, "dns_table.txt", &ip)) {
+                printf("IP-address file: %.*s\n", (int)strlen(ip), ip);
+                updateCache(&cache, domain, ip);
             }
             else {
-                printf("Incorrect.\n");
+                printf("IP-address din't found.\n");
+                printf("Enter IP-address for add: ");
+                ip = getInputString();
+                if (isValidIP(ip)) {
+                    if (isDuplicateRecord(ip, "dns_table.txt")) {
+                        printf("Already exist.\n");
+                    }
+                    else {
+                        addRecordToFile(domain, ip, "dns_table.txt");
+                        printf("Good.\n");
+                        updateCache(&cache, domain, ip);
+                    }
+                }
+                else {
+                    printf("Incorrect.\n");
+                }
             }
         }
-        printf("1 - next; 0 = exit: ");
+        printf("1 - next; 0 = exit; 2 - show cache: ");
         scanf("%d", &choise);
+
         if (choise == 0)
         {
             return 0;
@@ -322,6 +337,11 @@ int main() {
             domain = (char*)malloc(strlen(userInput) + 1); 
             strcpy(domain, userInput);
             free(userInput);
+        }
+
+        else if (choise == 2)
+        {
+            printCache(&cache);
         }
     }
     free(domain);
