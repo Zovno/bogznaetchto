@@ -6,47 +6,195 @@
 
 #define CACHE_SIZE 10
 
+typedef struct Node {
+    int value;
+    int priority;
+    struct Node* prev;
+    struct Node* next;
+} Node;
+
+// Структура для представления очереди с приоритетами
+typedef struct {
+    Node* front;
+    Node* rear;
+} TimeQueue;
+
+
 typedef struct {
     char domain[100];
     char ip[16];
 } CacheEntry;
 
 typedef struct {
-    CacheEntry entries[CACHE_SIZE];
+    CacheEntry hash[500];
+    TimeQueue* timeQueue;
     int count;
 } Cache;
 
+/*------------------------------------------------------*/
+
+// Функция для создания нового элемента очереди
+Node* createNode(int value, int priority) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    newNode->value = value;
+    newNode->priority = priority;
+    newNode->prev = NULL;
+    newNode->next = NULL;
+    return newNode;
+}
+
+// Функция для создания новой очереди с приоритетами
+TimeQueue* createTimeQueue() {
+    TimeQueue* newTimeQueue = (TimeQueue*)malloc(sizeof(TimeQueue));
+    newTimeQueue->front = NULL;
+    newTimeQueue->rear = NULL;
+    return newTimeQueue;
+}
+
+// Функция для добавления элемента в очередь с приоритетами
+void add(TimeQueue* timeQueue, int value, int priority) {
+    Node* newNode = createNode(value, priority);
+
+    if (timeQueue->front == NULL) {
+        // Если очередь пустая
+        timeQueue->front = newNode;
+        timeQueue->rear = newNode;
+    }
+    else if (priority < timeQueue->front->priority) {
+        // Если новый элемент имеет наименьший приоритет
+        newNode->next = timeQueue->front;
+        timeQueue->front->prev = newNode;
+        timeQueue->front = newNode;
+    }
+    else {
+        Node* current = timeQueue->front;
+        while (current->next != NULL && current->next->priority <= priority) {
+            current = current->next;
+        }
+        newNode->next = current->next;
+        newNode->prev = current;
+        if (current->next != NULL) {
+            current->next->prev = newNode;
+        }
+        else {
+            timeQueue->rear = newNode;
+        }
+        current->next = newNode;
+    }
+}
+
+// Функция для извлечения элемента с наименьшим приоритетом из очереди
+int extractMinValue(TimeQueue* timeQueue) {
+    if (timeQueue->front == NULL) {
+        printf("Очередь пуста.\n");
+        return NULL;
+    }
+
+    Node* minNode = timeQueue->front;
+    int minValue = minNode->value;
+
+    timeQueue->front = timeQueue->front->next;
+    if (timeQueue->front != NULL) {
+        timeQueue->front->prev = NULL;
+    }
+    else {
+        timeQueue->rear = NULL;
+    }
+
+    free(minNode);
+    return minValue;
+}
+
+void increasePriority(TimeQueue* timeQueue, int key) {
+    Node* current = timeQueue->front;
+    while (current != NULL) {
+        if (current->value == key)
+        {
+            int an = current->priority;
+            // Удаляем элемент из текущей позиции
+            if (current->prev != NULL) {
+                current->prev->next = current->next;
+            }
+            else {
+                timeQueue->front = current->next;
+            }
+            if (current->next != NULL) {
+                current->next->prev = current->prev;
+            }
+            else {
+                timeQueue->rear = current->prev;
+            }
+            // Добавляем элемент в новую позицию с новым приоритетом
+            add(timeQueue, current->value, ++an);
+            free(current);
+            return;
+        }
+        current = current->next;
+    }
+    printf("err.\n");
+}
+
+void printTimeQueue(TimeQueue* timeQueue) {
+    Node* current = timeQueue->front;
+    while (current != NULL) {
+        printf("Value: %d, Priority: %d\n", current->value, current->priority);
+        current = current->next;
+    }
+}
+
+/*-----------------------конец-----------------------------------*/
+
+
+unsigned int complexHash(const char* str) {
+    unsigned int hash = 5381;
+
+    while (*str) {
+        hash = ((hash << 5) + hash) ^ (*str++);
+    }
+
+    // Применение дополнительных преобразований для расширения диапазона хэша
+    hash = ((hash >> 16) ^ hash) * 0x45D9F3B;
+    hash = ((hash >> 16) ^ hash) * 0x45D9F3B;
+    hash = (hash >> 16) ^ hash;
+
+    // Масштабирование хэша до диапазона от 0 до 1000
+    hash %= 501;
+
+    return hash;
+}
+
+
 // Инициализация кэша
 void initializeCache(Cache* cache) {
+    cache->timeQueue = createTimeQueue();
     cache->count = 0;
+    for (int i = 0; i < 500; i++)
+        strcpy(cache->hash[i].domain, "");
 }
 
 // Поиск в кэше
 int searchCache(Cache* cache, char* domain, char* ip) {
-    for (int i = 0; i < cache->count; i++) {
-        if (strcmp(cache->entries[i].domain, domain) == 0) {
-            strcpy(ip, cache->entries[i].ip);
+
+        if (strcmp(cache->hash[complexHash(domain)].domain, domain) == 0) {
+            strcpy(ip, cache->hash[complexHash(domain)].ip);
             // Обновление положения записи в кэше (алгоритм LRU)
-            for (int j = i; j < cache->count - 1; j++) {
-                strcpy(cache->entries[j].domain, cache->entries[j + 1].domain);
-                strcpy(cache->entries[j].ip, cache->entries[j + 1].ip);
-            }
-            strcpy(cache->entries[cache->count - 1].domain, domain);
-            strcpy(cache->entries[cache->count - 1].ip, ip);
+            increasePriority(cache->timeQueue, complexHash(domain));
             return 1;
         }
-    }
+
     return 0;
 }
 
 void printCache(const Cache* cache) {
-    printf("Cache Contents:\n");
-    printf("---------------\n");
-    for (int i = 0; i < cache->count; i++) {
-        printf("Entry %d:\n", i + 1);
-        printf("Domain: %s\n", cache->entries[i].domain);
-        printf("IP: %s\n", cache->entries[i].ip);
-        printf("---------------\n");
+
+    printTimeQueue(cache->timeQueue);
+
+    for (int i = 0; i < 500; i++)
+    {
+        if (strcmp(cache->hash[i].domain, ""))
+        {
+            printf("Domain: %s, ip: %s, key: %d\n", cache->hash[i].domain, cache->hash[i].ip, i);
+        }
     }
 }
 
@@ -54,18 +202,21 @@ void printCache(const Cache* cache) {
 void updateCache(Cache* cache, char* domain, char* ip) {
     if (cache->count < CACHE_SIZE) {
         // Добавление новой записи в кэш
-        strcpy(cache->entries[cache->count].domain, domain);
-        strcpy(cache->entries[cache->count].ip, ip);
+        strcpy(cache->hash[complexHash(domain)].domain, domain);
+        strcpy(cache->hash[complexHash(domain)].ip, ip);
         cache->count++;
+        add(cache->timeQueue, complexHash(domain), 0);
     }
     else {
         // Замена наименее используемой записи в кэше
-        for (int i = 0; i < cache->count - 1; i++) {
-            strcpy(cache->entries[i].domain, cache->entries[i + 1].domain);
-            strcpy(cache->entries[i].ip, cache->entries[i + 1].ip);
-        }
-        strcpy(cache->entries[cache->count - 1].domain, domain);
-        strcpy(cache->entries[cache->count - 1].ip, ip);
+        int a = extractMinValue(cache->timeQueue);
+        strcpy(cache->hash[a].domain, "");
+        strcpy(cache->hash[a].ip, "");
+        a = complexHash(domain);
+        add(cache->timeQueue, a, 0);
+
+        strcpy(cache->hash[a].domain, domain);
+        strcpy(cache->hash[a].ip, ip);
     }
 }
 
